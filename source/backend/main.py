@@ -1,28 +1,30 @@
-"""Application entry point: imports the documents then reloads them."""
-
-import pandas as pd
+"""Application entry point: loads the stored documents into the corpus and displays it."""
 
 from helpers.environment_manager import EnvironmentManager
-from infrastructure.arxiv_source import ArxivSource
 from infrastructure.json_dao import JsonDAO
 from infrastructure.json_reader import JsonReader
 from infrastructure.json_writer import JsonWriter
-from infrastructure.reddit_source import RedditSource
-from script.scrap_data import DATA_FILENAME_KEY, ScrapData
-from service.interfaces.i_dao import IDAO
-from service.scraping_service import ScrapingService
+from script.scrap_data import DATA_FILENAME_KEY
+from service.author_manager import AuthorManager
+from service.corpus_manager import CorpusManager
+from service.corpus_mapper import CorpusMapper
+from service.document_factory import DocumentFactory
+
+NB_DOCUMENTS_DISPLAYED: int = 5
 
 
 def main() -> None:
-    """Run the import script, reload the stored documents and print their number."""
-    dao: IDAO = JsonDAO(JsonWriter(), JsonReader())
+    """Load the corpus from the data file, without calling the APIs, then print a few sorted documents."""
     data_filename: str = EnvironmentManager.get_instance().get_environment_variable(DATA_FILENAME_KEY)
+    mapper: CorpusMapper = CorpusMapper(DocumentFactory(), AuthorManager())
+    corpus_manager: CorpusManager = CorpusManager(JsonDAO(JsonWriter(), JsonReader()), mapper, data_filename)
+    corpus_manager.load()
+    print(repr(corpus_manager))
 
-    scraping_service: ScrapingService = ScrapingService([RedditSource(), ArxivSource()], dao)
-    ScrapData(scraping_service).run(data_filename)
-
-    documents: pd.DataFrame = dao.read_data(data_filename)
-    print(f"Number of documents: {len(documents)}")
+    print(f"\n{NB_DOCUMENTS_DISPLAYED} most recent documents:")
+    corpus_manager.print_document_by_date(NB_DOCUMENTS_DISPLAYED, ascending=False)
+    print(f"\n{NB_DOCUMENTS_DISPLAYED} first documents by title:")
+    corpus_manager.print_document_by_title(NB_DOCUMENTS_DISPLAYED)
 
 
 if __name__ == "__main__":
