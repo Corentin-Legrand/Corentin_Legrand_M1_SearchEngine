@@ -1,3 +1,4 @@
 pandas==3.0.5
 praw==8.0.3
+pytest==9.2.0
 xmltodict==1.0.4
