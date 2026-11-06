@@ -1,9 +1,16 @@
 """Simple measurements and cleaning on raw texts."""
 
+import re
+
 MINIMUM_TEXT_LENGTH: int = 100
 SENTENCE_SEPARATOR: str = "."
 LINE_BREAK: str = "\n"
 SPACE: str = " "
+# Punctuation and symbols (anything but letters, digits and whitespace); "_" is a word character for `re`.
+PUNCTUATION_PATTERN: str = r"[^\w\s]|_"
+WHITESPACE_PATTERN: str = r"\s+"
+# Words are separated by any run of whitespace (space, tab...) or punctuation sign.
+WORD_DELIMITER_PATTERN: str = r"[\s\W_]+"
 
 
 class TextManager:
@@ -22,6 +29,33 @@ class TextManager:
             str: The text on a single line.
         """
         return text.replace(LINE_BREAK, SPACE).strip()
+
+    def clean_text(self, text: str) -> str:
+        """Normalise a text before counting its words.
+
+        The text is lowered, its line breaks and punctuation are replaced by spaces and its
+        whitespace runs are reduced to a single space. Digits are kept.
+
+        Args:
+            text (str): The raw text.
+
+        Returns:
+            str: The cleaned text.
+        """
+        cleaned_text: str = text.lower().replace(LINE_BREAK, SPACE)
+        cleaned_text = re.sub(PUNCTUATION_PATTERN, SPACE, cleaned_text)
+        return re.sub(WHITESPACE_PATTERN, SPACE, cleaned_text).strip()
+
+    def tokenize(self, text: str) -> list[str]:
+        """Split a text into words, using whitespace and punctuation as delimiters.
+
+        Args:
+            text (str): The text to split, usually cleaned by `clean_text`.
+
+        Returns:
+            list[str]: The words of the text, in order, without empty strings.
+        """
+        return [word for word in re.split(WORD_DELIMITER_PATTERN, text) if word]
 
     def join_texts(self, texts: list[str]) -> str:
         """Concatenate texts into a single string, one text per line.
