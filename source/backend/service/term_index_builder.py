@@ -4,11 +4,15 @@ from collections import Counter
 
 import numpy as np
 from scipy.sparse import csr_matrix
+from tqdm.auto import tqdm
 
 from helpers.text_manager import TextManager
 from models.corpus import Corpus
 from models.term_index import TermIndex
 from models.vocabulary_entry import VocabularyEntry
+
+PROGRESS_DESCRIPTION: str = "Indexing documents"
+PROGRESS_UNIT: str = "doc"
 
 
 class TermIndexBuilder:
@@ -16,6 +20,7 @@ class TermIndexBuilder:
     Build the vocabulary, the TF matrix and the TF x IDF matrix of a corpus, by hand.
 
     The texts are cleaned and split only once; the word statistics are then read from the TF matrix.
+    A progress bar shows the advancement of this loop over the documents, the longest step on a large corpus.
 
     Attributes:
         text_manager (TextManager): Helper cleaning and splitting the texts (private).
@@ -37,7 +42,10 @@ class TermIndexBuilder:
             TermIndex: The vocabulary, sorted alphabetically, and the TF and TF x IDF matrices.
         """
         document_ids: list[int] = list(corpus.documents.keys())
-        word_counts: list[Counter[str]] = [self.__count_words(corpus.documents[key].text) for key in document_ids]
+        word_counts: list[Counter[str]] = [
+            self.__count_words(corpus.documents[key].text)
+            for key in tqdm(document_ids, desc=PROGRESS_DESCRIPTION, unit=PROGRESS_UNIT)
+        ]
         words: list[str] = sorted(set().union(*word_counts))
         column_by_word: dict[str, int] = {word: column for column, word in enumerate(words)}
 
