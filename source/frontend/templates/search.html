@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="fr">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Moteur de recherche</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <header>
+        <h1>Moteur de recherche</h1>
+        <form method="get" action="/">
+            <input type="search" name="keywords" value="{{ keywords }}" placeholder="Mots clés" autofocus required>
+            <label>
+                Résultats
+                <input type="number" name="nb_documents" value="{{ nb_documents }}"
+                       min="{{ minimum_nb_documents }}" max="{{ maximum_nb_documents }}">
+            </label>
+            <button type="submit">Rechercher</button>
+        </form>
+    </header>
+
+    <main>
+        {% if error_message %}
+            <p class="message error">{{ error_message }}</p>
+        {% elif keywords and not results %}
+            <p class="message">Aucun document ne correspond à « {{ keywords }} ».</p>
+        {% endif %}
+
+        {% for result in results %}
+            <article>
+                <h2><a href="{{ result.url }}" target="_blank" rel="noopener">{{ result.title }}</a></h2>
+                <p class="meta">
+                    <span class="origin">{{ result.origin }}</span>
+                    {{ result.author }} · {{ result.date.strftime('%d/%m/%Y') }} · score {{ '%.3f' % result.score }}
+                </p>
+            </article>
+        {% endfor %}
+    </main>
+</body>
+</html>
