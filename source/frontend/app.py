@@ -9,7 +9,8 @@ from models.search_api_client import SearchApiClient
 
 API_URL_KEY: str = "SEARCH_API_URL"
 DEFAULT_API_URL: str = "http://127.0.0.1:8000"
-APP_HOST: str = "127.0.0.1"
+APP_HOST_KEY: str = "APP_HOST"
+DEFAULT_APP_HOST: str = "127.0.0.1"
 APP_PORT: int = 5000
 
 
@@ -30,4 +31,5 @@ def create_app(search_api_client: SearchApiClient) -> Flask:
 
 if __name__ == "__main__":
     api_url: str = os.environ.get(API_URL_KEY, DEFAULT_API_URL)
-    create_app(SearchApiClient(api_url)).run(host=APP_HOST, port=APP_PORT)
+    app_host: str = os.environ.get(APP_HOST_KEY, DEFAULT_APP_HOST)
+    create_app(SearchApiClient(api_url)).run(host=app_host, port=APP_PORT)
