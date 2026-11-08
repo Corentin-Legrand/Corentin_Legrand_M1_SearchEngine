@@ -22,13 +22,16 @@ def client(load_corpus: Callable[[list[str]], Corpus]) -> TestClient:
     return TestClient(create_app(SearchEngine(load_corpus(COURSE_TEXTS))))
 
 
-def get_search(client: TestClient, keywords: str, nb_documents: int | None = None) -> Response:
+def get_search(
+    client: TestClient, keywords: str, nb_documents: int | None = None, measure: str | None = None
+) -> Response:
     """Send a search request.
 
     Args:
         client (TestClient): The client of the application.
         keywords (str): The words of the query.
         nb_documents (int | None): The maximum number of documents to return, the default one when None.
+        measure (str | None): The similarity measure, the default one when None.
 
     Returns:
         Response: The response of the application.
@@ -36,6 +39,8 @@ def get_search(client: TestClient, keywords: str, nb_documents: int | None = Non
     parameters: dict[str, str | int] = {"keywords": keywords}
     if nb_documents is not None:
         parameters["nb_documents"] = nb_documents
+    if measure is not None:
+        parameters["measure"] = measure
     return client.get(SEARCH_PATH, params=parameters)
 
 
@@ -81,3 +86,14 @@ def test_search_with_too_many_documents_is_rejected(client: TestClient) -> None:
 def test_search_without_keywords_is_rejected(client: TestClient) -> None:
     """The keywords are required."""
     assert client.get(SEARCH_PATH).status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+
+def test_search_with_bm25_returns_course_scores(client: TestClient) -> None:
+    """The measure parameter selects the BM25 score."""
+    results: list[dict[str, object]] = get_search(client, COURSE_QUERY, measure="bm25").json()
+    assert [result["score"] for result in results] == pytest.approx([1.670, 0.499], abs=1e-3)
+
+
+def test_search_with_unknown_measure_is_rejected(client: TestClient) -> None:
+    """Only the available measures are accepted."""
+    assert get_search(client, COURSE_QUERY, measure="pagerank").status_code == status.HTTP_422_UNPROCESSABLE_CONTENT

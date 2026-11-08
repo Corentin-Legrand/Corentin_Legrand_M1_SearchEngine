@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 
 from controller.schemas import ErrorDTO, SearchResultDTO
 from service.search_engine import MINIMUM_NB_DOCUMENTS, SearchEngine
+from service.similarity_measure import SimilarityMeasure
 
 SEARCH_PATH: str = "/search"
 DEFAULT_NB_DOCUMENTS: int = 10
@@ -57,17 +58,21 @@ class SearchController:
                 description="The maximum number of documents to return.",
             ),
         ] = DEFAULT_NB_DOCUMENTS,
+        measure: Annotated[
+            SimilarityMeasure, Query(description="The measure ranking the documents.")
+        ] = SimilarityMeasure.TF_IDF,
     ) -> list[SearchResultDTO]:
         """Return the documents most similar to a query, by decreasing score.
 
         Args:
             keywords (str): The words of the query.
             nb_documents (int): The maximum number of documents to return.
+            measure (SimilarityMeasure): The measure ranking the documents.
 
         Returns:
             list[SearchResultDTO]: The found documents, empty when no document matches.
         """
-        results: pd.DataFrame = self.__search_engine.search(keywords, nb_documents)
+        results: pd.DataFrame = self.__search_engine.search(keywords, nb_documents, measure)
         rows: list[dict[str, Any]] = results.to_dict(orient="records")
         return [SearchResultDTO.model_validate(row) for row in rows]
 

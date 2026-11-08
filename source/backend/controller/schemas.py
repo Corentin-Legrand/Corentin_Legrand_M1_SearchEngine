@@ -10,7 +10,7 @@ class SearchResultDTO(BaseModel):
     A document found by a search.
 
     Attributes:
-        score (float): Cosine similarity between the document and the query.
+        score (float): Relevance of the document for the query, by the chosen similarity measure.
         document_id (int): Identifier of the document in the corpus.
         title (str): Title of the document.
         author (str): Name of the author of the document.

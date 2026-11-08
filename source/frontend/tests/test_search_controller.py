@@ -9,6 +9,7 @@ from app import create_app
 from controllers.search_controller import MAXIMUM_NB_DOCUMENTS
 from models.search_api_client import SearchApiClient, SearchApiError
 from models.search_result import SearchResult
+from models.similarity_measure import SimilarityMeasure
 
 FAKE_API_URL: str = "http://fake-api"
 FOUND_TITLE: str = "Solar energy in Europe"
@@ -22,7 +23,7 @@ class FakeSearchApiClient(SearchApiClient):
     Attributes:
         results (list[SearchResult]): The results returned to every query.
         error (SearchApiError | None): The error raised by every query, if any.
-        queries (list[tuple[str, int]]): The received keywords and numbers of documents.
+        queries (list[tuple[str, int, SimilarityMeasure]]): The received keywords, numbers of documents and measures.
 
     Author: Corentin Legrand
     """
@@ -37,14 +38,15 @@ class FakeSearchApiClient(SearchApiClient):
         super().__init__(FAKE_API_URL)
         self.results: list[SearchResult] = results
         self.error: SearchApiError | None = error
-        self.queries: list[tuple[str, int]] = []
+        self.queries: list[tuple[str, int, SimilarityMeasure]] = []
 
-    def search(self, keywords: str, nb_documents: int) -> list[SearchResult]:
+    def search(self, keywords: str, nb_documents: int, measure: SimilarityMeasure) -> list[SearchResult]:
         """Record the query and return the configured results.
 
         Args:
             keywords (str): The words of the query.
             nb_documents (int): The maximum number of documents to return.
+            measure (SimilarityMeasure): The measure ranking the documents.
 
         Returns:
             list[SearchResult]: The configured results.
@@ -52,7 +54,7 @@ class FakeSearchApiClient(SearchApiClient):
         Raises:
             SearchApiError: If an error is configured.
         """
-        self.queries.append((keywords, nb_documents))
+        self.queries.append((keywords, nb_documents, measure))
         if self.error is not None:
             raise self.error
         return self.results
@@ -118,4 +120,21 @@ def test_page_bounds_number_of_documents(nb_documents: int, expected: int) -> No
     """The number of documents sent to the API stays within the bounds."""
     api_client: FakeSearchApiClient = FakeSearchApiClient([])
     get_page(api_client, {"keywords": "solar", "nb_documents": nb_documents})
-    assert api_client.queries == [("solar", expected)]
+    assert [nb for _, nb, _ in api_client.queries] == [expected]
+
+
+@pytest.mark.parametrize(
+    ("measure", "expected"),
+    [("bm25", SimilarityMeasure.BM25), ("tfidf", SimilarityMeasure.TF_IDF), ("pagerank", SimilarityMeasure.TF_IDF)],
+)
+def test_page_sends_chosen_measure(measure: str, expected: SimilarityMeasure) -> None:
+    """The chosen measure is sent to the API, the default one when unknown."""
+    api_client: FakeSearchApiClient = FakeSearchApiClient([])
+    get_page(api_client, {"keywords": "solar", "measure": measure})
+    assert [sent for _, _, sent in api_client.queries] == [expected]
+
+
+def test_page_keeps_chosen_measure_selected() -> None:
+    """The chosen measure stays selected after the search."""
+    page: str = get_page(FakeSearchApiClient([FOUND_RESULT]), {"keywords": "solar", "measure": "bm25"})
+    assert '<option value="bm25" selected>' in page

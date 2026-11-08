@@ -7,6 +7,7 @@ import pytest
 
 from models.corpus import Corpus
 from service.search_engine import EmptyQueryError, InvalidNbDocumentsError, SearchEngine
+from service.similarity_measure import SimilarityMeasure
 from service.text_analysis_schema import FrequencyColumn, SearchResultColumn
 
 TEXTS: list[str] = ["Solar energy, solar!", "carbon energy", "Carbon climate solar"]
@@ -14,6 +15,7 @@ TEXTS: list[str] = ["Solar energy, solar!", "carbon energy", "Carbon climate sol
 COURSE_TEXTS: list[str] = ["solar energy solar", "carbon energy", "carbon climate"]
 COURSE_QUERY: str = "solar energy"
 COURSE_SCORES: list[float] = [0.985, 0.245]
+BM25_COURSE_SCORES: list[float] = [1.670, 0.499]
 SCORE_TOLERANCE: float = 1e-3
 NB_DOCUMENTS: int = 10
 
@@ -110,3 +112,9 @@ def test_search_rejects_non_positive_nb_documents(course_engine: SearchEngine) -
     """At least one document must be asked."""
     with pytest.raises(InvalidNbDocumentsError):
         course_engine.search(COURSE_QUERY, 0)
+
+
+def test_search_with_bm25_gives_course_scores(course_engine: SearchEngine) -> None:
+    """The BM25 measure gives the scores computed by hand on the course example; D3 is left out."""
+    results: pd.DataFrame = course_engine.search(COURSE_QUERY, NB_DOCUMENTS, SimilarityMeasure.BM25)
+    assert results[SearchResultColumn.SCORE].tolist() == pytest.approx(BM25_COURSE_SCORES, abs=SCORE_TOLERANCE)

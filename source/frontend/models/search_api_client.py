@@ -6,6 +6,7 @@ from typing import Any
 import httpx2
 
 from models.search_result import SearchResult
+from models.similarity_measure import SimilarityMeasure
 
 SEARCH_PATH: str = "/search"
 REQUEST_TIMEOUT_SECONDS: float = 10.0
@@ -39,12 +40,13 @@ class SearchApiClient:
         """
         self.__base_url: str = base_url
 
-    def search(self, keywords: str, nb_documents: int) -> list[SearchResult]:
+    def search(self, keywords: str, nb_documents: int, measure: SimilarityMeasure) -> list[SearchResult]:
         """Return the documents most similar to a query, by decreasing score.
 
         Args:
             keywords (str): The words of the query.
             nb_documents (int): The maximum number of documents to return.
+            measure (SimilarityMeasure): The measure ranking the documents.
 
         Returns:
             list[SearchResult]: The found documents, empty when no document matches.
@@ -52,7 +54,7 @@ class SearchApiClient:
         Raises:
             SearchApiError: If the backend is unreachable or rejects the query.
         """
-        parameters: dict[str, str | int] = {"keywords": keywords, "nb_documents": nb_documents}
+        parameters: dict[str, str | int] = {"keywords": keywords, "nb_documents": nb_documents, "measure": measure}
         try:
             response: httpx2.Response = httpx2.get(
                 self.__base_url + SEARCH_PATH, params=parameters, timeout=REQUEST_TIMEOUT_SECONDS

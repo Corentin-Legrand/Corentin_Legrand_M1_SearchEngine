@@ -16,6 +16,16 @@
                 <input type="number" name="nb_documents" value="{{ nb_documents }}"
                        min="{{ minimum_nb_documents }}" max="{{ maximum_nb_documents }}">
             </label>
+            <label>
+                Mesure
+                <select name="measure">
+                    {% for option in measures %}
+                        <option value="{{ option }}" {% if option == measure %}selected{% endif %}>
+                            {{ option.label }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </label>
             <button type="submit">Rechercher</button>
         </form>
     </header>

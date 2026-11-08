@@ -10,8 +10,12 @@ from helpers.text_manager import TextManager
 from models.corpus import Corpus
 from models.document import Document
 from models.term_index import TermIndex
+from service.bm25_similarity import Bm25Similarity
+from service.interfaces.i_similarity import ISimilarity
+from service.similarity_measure import SimilarityMeasure
 from service.term_index_builder import TermIndexBuilder
 from service.text_analysis_schema import FrequencyColumn, SearchResultColumn
+from service.tfidf_cosine_similarity import TfIdfCosineSimilarity
 
 MINIMUM_NB_DOCUMENTS: int = 1
 
@@ -34,12 +38,13 @@ class SearchEngine:
     """
     Search engine over a corpus, whose vocabulary and matrices are built at instantiation.
 
-    Documents are ranked by the cosine similarity between their TF x IDF vector and the one of the query.
+    Documents are ranked by a `SimilarityMeasure`: the cosine similarity between their TF x IDF vector and the one
+    of the query (default), or the Okapi BM25 score.
 
     Attributes:
         index (TermIndex): Vocabulary and Documents x Terms matrices of the corpus (read only).
         corpus (Corpus): The searched corpus (private).
-        document_norms (np.ndarray): Euclidean norm of the TF x IDF vector of each document (private).
+        similarities (dict[SimilarityMeasure, ISimilarity]): The available similarity measures (private).
         text_manager (TextManager): Helper cleaning and splitting the queries (private).
 
     Author: Corentin Legrand
@@ -53,7 +58,10 @@ class SearchEngine:
         """
         self.__corpus: Corpus = corpus
         self.__index: TermIndex = TermIndexBuilder().build(corpus)
-        self.__document_norms: np.ndarray = np.sqrt(np.asarray(self.__index.mat_tfidf.power(2).sum(axis=1)).ravel())
+        self.__similarities: dict[SimilarityMeasure, ISimilarity] = {
+            SimilarityMeasure.TF_IDF: TfIdfCosineSimilarity(self.__index),
+            SimilarityMeasure.BM25: Bm25Similarity(self.__index),
+        }
         self.__text_manager: TextManager = TextManager()
 
     @property
@@ -61,7 +69,9 @@ class SearchEngine:
         """TermIndex: Vocabulary and Documents x Terms matrices of the corpus."""
         return self.__index
 
-    def search(self, keywords: str, nb_documents: int) -> pd.DataFrame:
+    def search(
+        self, keywords: str, nb_documents: int, measure: SimilarityMeasure = SimilarityMeasure.TF_IDF
+    ) -> pd.DataFrame:
         """Return the documents most similar to a query.
 
         The keywords are cleaned like the documents; the words missing from the vocabulary are ignored.
@@ -69,6 +79,7 @@ class SearchEngine:
         Args:
             keywords (str): The words of the query.
             nb_documents (int): The maximum number of documents to return.
+            measure (SimilarityMeasure): The measure ranking the documents.
 
         Returns:
             pd.DataFrame: The documents of non null score, by decreasing score, with `SearchResultColumn` columns.
@@ -79,7 +90,7 @@ class SearchEngine:
         """
         if nb_documents < MINIMUM_NB_DOCUMENTS:
             raise InvalidNbDocumentsError(f"The number of documents must be positive, got {nb_documents}.")
-        scores: np.ndarray = self.__compute_similarities(self.__build_query_vector(keywords))
+        scores: np.ndarray = self.__similarities[measure].compute_scores(self.__count_query_words(keywords))
         ranked_rows: np.ndarray = np.argsort(-scores, kind="stable")
         best_rows: list[int] = [int(row) for row in ranked_rows[:nb_documents] if scores[row] > 0]
         rows: list[dict[str, Any]] = [self.__build_result(row, float(scores[row])) for row in best_rows]
@@ -113,14 +124,14 @@ class SearchEngine:
         print(f"{nb_words} most frequent words:")
         print(most_frequent_words.to_string(index=False))
 
-    def __build_query_vector(self, keywords: str) -> np.ndarray:
-        """Turn a query into a TF x IDF vector over the vocabulary.
+    def __count_query_words(self, keywords: str) -> np.ndarray:
+        """Count the occurrences of the words of the vocabulary in a query.
 
         Args:
             keywords (str): The words of the query.
 
         Returns:
-            np.ndarray: The weight of each word of the vocabulary in the query.
+            np.ndarray: The number of occurrences in the query of each word of the vocabulary.
 
         Raises:
             EmptyQueryError: If the query holds no word once cleaned.
@@ -128,26 +139,11 @@ class SearchEngine:
         words: list[str] = self.__text_manager.tokenize(self.__text_manager.clean_text(keywords))
         if not words:
             raise EmptyQueryError(f"The query '{keywords}' holds no word.")
-        query_vector: np.ndarray = np.zeros(len(self.__index.vocab))
+        query_counts: np.ndarray = np.zeros(len(self.__index.vocab))
         for word, count in Counter(words).items():
             if word in self.__index.vocab:
-                query_vector[self.__index.vocab[word].identifier] = count
-        return query_vector * self.__index.idf
-
-    def __compute_similarities(self, query_vector: np.ndarray) -> np.ndarray:
-        """Compute the cosine similarity between a query and each document.
-
-        A document or a query of null norm (no weighted word) has a null similarity.
-
-        Args:
-            query_vector (np.ndarray): The TF x IDF vector of the query.
-
-        Returns:
-            np.ndarray: The similarity of each document, by matrix row.
-        """
-        dot_products: np.ndarray = self.__index.mat_tfidf @ query_vector
-        norms: np.ndarray = self.__document_norms * np.linalg.norm(query_vector)
-        return np.divide(dot_products, norms, out=np.zeros_like(dot_products), where=norms > 0)
+                query_counts[self.__index.vocab[word].identifier] = count
+        return query_counts
 
     def __build_result(self, row: int, score: float) -> dict[str, Any]:
         """Describe a found document.

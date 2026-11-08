@@ -48,6 +48,7 @@ input[type="number"] {
 }
 
 input,
+select,
 button {
     padding: 8px 10px;
     font: inherit;
